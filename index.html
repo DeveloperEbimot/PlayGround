@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Iron Reclaimer</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div id="hud">
+      <div id="top-bar">
+        <div class="panel">
+          <span class="label">Status</span>
+          <strong id="status-text">System booting...</strong>
+        </div>
+        <div class="panel small">
+          <span class="label">Objective</span>
+          <strong id="objective-text">Find the first relay</strong>
+        </div>
+      </div>
+      <div id="stats">
+        <div class="panel stat">
+          <span class="label">Hull</span>
+          <strong id="health-value">100%</strong>
+        </div>
+        <div class="panel stat">
+          <span class="label">Relays</span>
+          <strong id="relay-value">0/3</strong>
+        </div>
+      </div>
+      <div id="story-box" class="panel">
+        <span class="label">Mission Log</span>
+        <p id="story-text">The wrecked relay station hums beneath the dust storm. Wake up and restore the three power relays before the last drone pack reaches the core.</p>
+      </div>
+      <div id="crosshair"></div>
+    </div>
+    <div id="message-overlay" class="hidden">
+      <div class="message-card">
+        <h1 id="overlay-title">System Reset</h1>
+        <p id="overlay-copy">The station is still offline.</p>
+        <button id="restart-btn">Restart Mission</button>
+      </div>
+    </div>
+    <script type="module" src="game.js"></script>
+  </body>
+</html>
