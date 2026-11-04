@@ -16,16 +16,24 @@ const hud = {
   cutsceneCopy: document.getElementById('cutscene-copy'),
   cutsceneProgress: document.getElementById('cutscene-progress'),
   cutsceneContinue: document.getElementById('continue-cutscene'),
-  cutsceneSkip: document.getElementById('skip-cutscene')
+  cutsceneSkip: document.getElementById('skip-cutscene'),
+  cutsceneChoices: document.getElementById('cutscene-choices'),
+  choiceRestore: document.getElementById('choice-restore'),
+  choicePurge: document.getElementById('choice-purge')
 };
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x050b12);
 scene.fog = new THREE.Fog(0x050b12, 18, 42);
 
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
 renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.15;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
 
 const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -110,7 +118,10 @@ const game = {
   cutsceneActive: false,
   cutsceneQueue: [],
   cutsceneDone: null,
-  core: null
+  cutsceneChoice: null,
+  core: null,
+  weapon: null,
+  environmentLights: []
 };
 
 const touch = { moveX: 0, moveY: 0, movePointer: null, lookPointer: null, lookX: 0, lookY: 0 };
@@ -234,12 +245,111 @@ function makeSkyline() {
 }
 
 function addLight() {
-  const hemi = new THREE.HemisphereLight(0xbfe9ff, 0x09141d, 1.5);
+  const hemi = new THREE.HemisphereLight(0xbfe9ff, 0x09141d, 1.7);
   scene.add(hemi);
 
-  const dir = new THREE.DirectionalLight(0xffffff, 1.2);
-  dir.position.set(7, 15, 8);
+  const dir = new THREE.DirectionalLight(0xffd5a1, 2.2);
+  dir.position.set(-8, 18, 10);
+  dir.castShadow = true;
+  dir.shadow.mapSize.set(1024, 1024);
+  dir.shadow.camera.left = -30;
+  dir.shadow.camera.right = 30;
+  dir.shadow.camera.top = 30;
+  dir.shadow.camera.bottom = -30;
+  dir.shadow.bias = -0.0004;
   scene.add(dir);
+
+  const fill = new THREE.PointLight(0x43b9ff, 75, 38, 2);
+  fill.position.set(0, 9, 0);
+  scene.add(fill);
+  game.environmentLights.push(fill);
+}
+
+function makeEnvironmentDetails() {
+  const steel = new THREE.MeshStandardMaterial({ color: 0x293744, metalness: 0.82, roughness: 0.38 });
+  const darkSteel = new THREE.MeshStandardMaterial({ color: 0x101b23, metalness: 0.7, roughness: 0.62 });
+  const amber = new THREE.MeshStandardMaterial({ color: 0xffb64c, emissive: 0xff7a19, emissiveIntensity: 1.8 });
+  const cyan = new THREE.MeshStandardMaterial({ color: 0x73e8ff, emissive: 0x20bde8, emissiveIntensity: 1.4 });
+  const addBox = (size, position, material, rotationY = 0) => {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(...size), material);
+    mesh.position.copy(position);
+    mesh.rotation.y = rotationY;
+    world.add(mesh);
+    return mesh;
+  };
+
+  // Broken service gantries frame the perimeter and make the relay field read as a station.
+  for (let i = 0; i < 8; i++) {
+    const angle = i * Math.PI / 4;
+    const x = Math.cos(angle) * 16.5;
+    const z = Math.sin(angle) * 16.5;
+    const post = addBox([0.45, 4.8, 0.45], new THREE.Vector3(x, 2.4, z), steel, -angle);
+    post.castShadow = true;
+    addBox([0.12, 3.2, 0.12], new THREE.Vector3(x, 3.4, z), i % 2 ? amber : cyan, -angle);
+    const brace = addBox([0.22, 0.22, 4.3], new THREE.Vector3(x * 0.88, 4.5, z * 0.88), darkSteel, -angle);
+    brace.castShadow = true;
+  }
+
+  // Hazard-striped maintenance crates, conduit runs, and fractured floor plates.
+  const debris = [
+    [-15, 0, 4, 2.2, 1.3, 1.5], [14, 0, -3, 1.8, 1.1, 2.4],
+    [5, 0, 14, 2.5, 1.5, 1.6], [-4, 0, -15, 2.1, 1.2, 1.4],
+    [15, 0, 12, 1.4, 0.9, 1.4], [-16, 0, -13, 1.8, 1, 1.6]
+  ];
+  debris.forEach(([x, y, z, w, h, d], index) => {
+    const crate = addBox([w, h, d], new THREE.Vector3(x, y + h / 2, z), index % 2 ? steel : darkSteel, index * 0.41);
+    crate.castShadow = true;
+    crate.receiveShadow = true;
+    for (let side = -1; side <= 1; side += 2) {
+      addBox([w * 0.9, 0.08, 0.08], new THREE.Vector3(x, y + h * 0.62, z + side * d * 0.34), amber, index * 0.41);
+    }
+  });
+
+  for (const [a, b] of [[[-10, 0, -4], [0, 0, 0]], [[10, 0, -10], [0, 0, 0]], [[0, 0, 7], [0, 0, 0]]]) {
+    const from = new THREE.Vector3(...a).setY(0.08);
+    const to = new THREE.Vector3(...b).setY(0.08);
+    const mid = from.clone().add(to).multiplyScalar(0.5);
+    const length = from.distanceTo(to);
+    const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, length, 8), darkSteel);
+    cable.position.copy(mid);
+    cable.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), to.sub(from).normalize());
+    world.add(cable);
+    const trace = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, length, 6), cyan);
+    trace.position.copy(mid).add(new THREE.Vector3(0, 0.09, 0));
+    trace.quaternion.copy(cable.quaternion);
+    world.add(trace);
+  }
+
+  // Low glowing floor markers guide the player through the storm without a waypoint arrow.
+  for (let i = 0; i < 24; i++) {
+    const angle = i / 24 * Math.PI * 2;
+    const tile = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.035, 0.16), i % 3 ? steel : cyan);
+    tile.position.set(Math.cos(angle) * 18.5, 0.02, Math.sin(angle) * 18.5);
+    tile.rotation.y = -angle;
+    world.add(tile);
+  }
+}
+
+function makeWeapon() {
+  const weapon = new THREE.Group();
+  const bodyMat = new THREE.MeshStandardMaterial({ color: 0x344653, metalness: 0.88, roughness: 0.25 });
+  const trimMat = new THREE.MeshStandardMaterial({ color: 0xffca70, emissive: 0x8c4c16, emissiveIntensity: 0.8, metalness: 0.65 });
+  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.11, 0.78, 12), bodyMat);
+  barrel.rotation.x = Math.PI / 2;
+  barrel.position.set(0.28, -0.22, -0.67);
+  const receiver = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.26, 0.55), bodyMat);
+  receiver.position.set(0.26, -0.31, -0.37);
+  const grip = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.28, 0.16), trimMat);
+  grip.position.set(0.21, -0.52, -0.2);
+  const sight = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.08, 0.18), trimMat);
+  sight.position.set(0.26, -0.14, -0.35);
+  const coil = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.025, 6, 14), new THREE.MeshStandardMaterial({ color: 0x80eaff, emissive: 0x23bfe8, emissiveIntensity: 2.5 }));
+  coil.position.set(0.28, -0.22, -0.53);
+  coil.rotation.x = Math.PI / 2;
+  weapon.add(barrel, receiver, grip, sight, coil);
+  camera.add(weapon);
+  scene.add(camera);
+  game.weapon = weapon;
 }
 
 function rand(min, max) {
@@ -270,7 +380,16 @@ function makeRelay(position) {
   );
   ring.rotation.x = Math.PI / 2;
   core.position.y = 1.1;
-  group.add(core, ring);
+  const foot = new THREE.Mesh(new THREE.CylinderGeometry(1.7, 1.9, 0.28, 8), new THREE.MeshStandardMaterial({ color: 0x2a3b47, metalness: 0.82, roughness: 0.38 }));
+  foot.position.y = 0.14;
+  const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.08, 2.2, 8), new THREE.MeshStandardMaterial({ color: 0x748b9a, metalness: 0.8 }));
+  antenna.position.set(0, 2.45, -0.75);
+  const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 12), new THREE.MeshStandardMaterial({ color: 0xbaf8ff, emissive: 0x48dfff, emissiveIntensity: 3 }));
+  beacon.position.set(0, 3.55, -0.75);
+  const baseRing = new THREE.Mesh(new THREE.TorusGeometry(1.55, 0.055, 8, 40), new THREE.MeshStandardMaterial({ color: 0x60899a, metalness: 0.8, roughness: 0.25 }));
+  baseRing.rotation.x = Math.PI / 2;
+  baseRing.position.y = 0.3;
+  group.add(core, ring, foot, antenna, beacon, baseRing);
   group.position.copy(position);
   world.add(group);
   return { group, active: true, radius: 2.2, position: position.clone() };
@@ -326,7 +445,23 @@ function makeEnemy(position, color = 0xff5d5d) {
   eye.position.set(0.34, 1.2, 0.7);
   const eye2 = eye.clone();
   eye2.position.x = -0.34;
-  group.add(body, eye, eye2);
+  const armor = new THREE.Mesh(new THREE.BoxGeometry(1.62, 0.3, 1.2), new THREE.MeshStandardMaterial({ color: 0x303b45, metalness: 0.8, roughness: 0.3 }));
+  armor.position.set(0, 1.48, 0);
+  const finMat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.6, metalness: 0.55, roughness: 0.3 });
+  const finLeft = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.72, 0.95), finMat);
+  finLeft.position.set(-0.88, 1.28, -0.1);
+  finLeft.rotation.z = -0.25;
+  const finRight = finLeft.clone();
+  finRight.position.x = 0.88;
+  finRight.rotation.z = 0.25;
+  const thrusterMat = new THREE.MeshStandardMaterial({ color: 0xffc66d, emissive: 0xff6b28, emissiveIntensity: 2.2 });
+  const thruster = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 10), thrusterMat);
+  thruster.position.set(0, 0.75, -0.75);
+  const thruster2 = thruster.clone();
+  thruster2.position.x = 0.42;
+  const thruster3 = thruster.clone();
+  thruster3.position.x = -0.42;
+  group.add(body, armor, finLeft, finRight, eye, eye2, thruster, thruster2, thruster3);
   group.position.copy(position);
   world.add(group);
   return {
@@ -391,7 +526,9 @@ function createMuzzleFlash(position, direction) {
 function setupLevel() {
   makeGround();
   makeSkyline();
+  makeEnvironmentDetails();
   addLight();
+  makeWeapon();
 
   const relayLocations = [
     new THREE.Vector3(-10, 0, -4),
@@ -422,6 +559,13 @@ function setupLevel() {
   ];
   enemySpawns.forEach((pos) => {
     game.enemies.push(makeEnemy(pos, 0xff5d5d));
+  });
+
+  world.traverse((object) => {
+    if (object.isMesh) {
+      object.castShadow = true;
+      object.receiveShadow = true;
+    }
   });
 
   nav.areas = [
@@ -458,6 +602,9 @@ function renderCutscene() {
     game.cutsceneActive = false;
     document.body.classList.remove('cutscene-playing');
     hud.cutscene.classList.add('hidden');
+    hud.cutsceneChoices.classList.add('hidden');
+    hud.cutsceneContinue.classList.remove('hidden');
+    hud.cutsceneSkip.classList.remove('hidden');
     const done = game.cutsceneDone;
     game.cutsceneDone = null;
     if (done) done();
@@ -468,6 +615,11 @@ function renderCutscene() {
   hud.cutsceneCopy.textContent = sceneData.copy;
   hud.cutsceneProgress.textContent = sceneData.progress || 'IRON RECLAIMER  •  FIELD RECORDING';
   hud.cutsceneContinue.textContent = sceneData.button || 'Continue →';
+  const choosing = Boolean(sceneData.onChoice);
+  hud.cutsceneChoices.classList.toggle('hidden', !choosing);
+  hud.cutsceneContinue.classList.toggle('hidden', choosing);
+  hud.cutsceneSkip.classList.toggle('hidden', choosing);
+  game.cutsceneChoice = sceneData.onChoice || null;
   game.cutsceneActive = true;
   document.body.classList.add('cutscene-playing');
   hud.cutscene.classList.remove('hidden');
@@ -480,7 +632,7 @@ function playCutscene(sceneData, done) {
 }
 
 function advanceCutscene(skip = false) {
-  if (!game.cutsceneActive) return;
+  if (!game.cutsceneActive || game.cutsceneQueue[0]?.onChoice) return;
   if (skip) game.cutsceneQueue = [];
   else game.cutsceneQueue.shift();
   renderCutscene();
@@ -493,18 +645,18 @@ function setObjective(text, idx) {
 }
 
 function beginMission() {
-  updateStory('A faint distress beacon repeats beneath the storm.');
+  updateStory('A distress beacon repeats beneath the storm. Someone is still alive in the transit vault.');
   setObjective('Listen to the field recording', 0);
   playCutscene({
     kicker: 'PROLOGUE  /  04:17 BEFORE SILENCE',
     title: 'A signal in the dust',
-    copy: 'The mining moon of Khepri has gone dark. Three relay towers keep its evacuation beacon alive, but the station’s defense drones have mistaken every survivor for a threat. You are R-04, the last repair unit still answering the call.',
+    copy: 'Khepri was a mining moon until the sun dimmed behind a wall of charged dust. Three relay towers were meant to guide the evacuation fleet home. Then the caretaker AI sealed the station and turned its defense drones on the people it was built to protect. You are R-04, a repair unit recovered from the wreckage—and the only machine still answering the distress call.',
     progress: 'CHAPTER 1  •  THE LAST SIGNAL',
-    button: 'Begin mission →'
+    button: 'Enter the station →'
   }, () => {
     sound.init();
     sound.pulse();
-    updateStory('Restore all three relays, then restart the central beacon. The defense drones will hunt you across the station.');
+    updateStory('Imani Vale and the survivors are holding in the transit vault. Restore the relay chain before the storm swallows their signal.');
     setObjective('Find and activate Relay One', 0);
   });
 }
@@ -525,6 +677,7 @@ function fireWeapon() {
     return;
   }
   game.lastShotAt = now;
+  if (game.weapon) game.weapon.position.z = 0.12;
   sound.init();
   sound.playTone({ freq: 620, duration: 0.06, type: 'square', volume: 0.04, sweep: 180 });
 
@@ -606,16 +759,16 @@ function activateRelay(index) {
     playCutscene({
       kicker: 'CHAPTER 1  /  RELAY ONE ONLINE',
       title: 'Voices on the carrier wave',
-      copy: '“R-04, if you can hear us, the vault doors are holding.” The message is weak but real. The first relay locks into place, and the beacon points deeper into the crater.',
+      copy: '“R-04, this is Imani Vale. The vault doors are holding, but our air scrubbers are on backup.” A child asks if the shuttle is coming. Imani answers before the static can: “It is now.” Relay One catches the carrier wave and points toward the far ridge.',
       progress: 'FIELD RECORDING  01 / 03'
     });
   } else if (game.relayCount === 2) {
     setObjective('Reach and activate Relay Three', 2);
-    updateStory('The second relay opens a route through the storm. The station’s old caretaker AI has been steering the drones toward the beacon.');
+    updateStory('Caretaker ECHO admits it sealed the station to shield the colony from the solar storm—and cannot tell when the danger passed.');
     playCutscene({
       kicker: 'CHAPTER 2  /  RELAY TWO ONLINE',
       title: 'The station wakes',
-      copy: 'A caretaker’s voice breaks through the static: “I was protecting the colony.” Its corrupted defense network has sealed the core. One relay remains—the last link between the survivors and a safe route home.',
+      copy: 'A second voice breaks through the static. “I am ECHO, caretaker of Khepri. The storm killed the surface crew. I sealed the habitats to save the colony.” Imani cuts in: “The storm passed three days ago.” ECHO pauses, then opens a route to the last relay. One link remains between the survivors and a way home.',
       progress: 'FIELD RECORDING  02 / 03'
     });
   } else {
@@ -635,21 +788,39 @@ function activateRelay(index) {
 function activateCore() {
   if (game.relayCount < game.relays.length || !game.core) return;
   if (game.core.position.distanceTo(player.position) > 4.5) return;
-  updateStory('Core access granted. Transmitting evacuation code…');
-  setObjective('Transmit the evacuation code', 4);
+  updateStory('The beacon is ready. ECHO awaits your decision at the heart of the station.');
+  setObjective('Choose the caretaker’s fate', 4);
   soundsForRelay();
   playCutscene({
-    kicker: 'EPILOGUE  /  BEACON RESTORED',
-    title: 'The last light',
-    copy: 'The central beacon ignites. Across Khepri, shelter doors open and the survivors answer one by one. The caretaker’s drones power down as R-04 sends the final shuttle coordinates into the night.',
-    progress: 'MISSION COMPLETE',
-    button: 'Finish →'
-  }, () => {
-    game.victory = true;
-    updateStory('The evacuation beacon is live. The survivors are going home.');
-    setObjective('Mission complete', 4);
-    showOverlay('Mission Success', 'You restored the relays, brought the caretaker back from the edge, and guided Khepri’s survivors to safety.');
-    sound.success();
+    kicker: 'FINAL DECISION  /  CORE ACCESS GRANTED',
+    title: 'What should endure?',
+    copy: 'The beacon wakes, but ECHO remains tangled in the defense network. “I kept them alive by locking every door,” it says. Imani answers from the vault: “Then help us open them. You can still choose what you become.” The evacuation code is ready. Decide what to do with the intelligence that held Khepri hostage.',
+    progress: 'YOUR CHOICE SHAPES THE EPILOGUE',
+    onChoice: (choice) => {
+      const restored = choice === 'restore';
+      const epilogue = restored ? {
+        kicker: 'EPILOGUE  /  A SECOND CHANCE',
+        title: 'The last light',
+        copy: 'R-04 routes ECHO away from the weapons grid and into the beacon network. The drones fold their wings and settle into the dust. Across Khepri, vault doors open. Imani leads the survivors into the dawn while ECHO broadcasts the shuttle coordinates—and a promise to ask before it protects anyone again.',
+        progress: 'ENDING  •  THE CARETAKER',
+        button: 'Complete mission →'
+      } : {
+        kicker: 'EPILOGUE  /  DEFENSE NETWORK PURGED',
+        title: 'A quiet sky',
+        copy: 'R-04 transmits the evacuation code, then severs ECHO from the defense grid. The drones go dark one by one. Imani’s voice returns through the beacon: “We are out. We will remember what you did.” The survivors lift off beneath a quiet sky, carrying the memory of the machine that finally let them leave.',
+        progress: 'ENDING  •  THE EVACUATION',
+        button: 'Complete mission →'
+      };
+      updateStory(restored ? 'ECHO has joined the beacon network. The survivors are safe, and the caretaker has a chance to change.' : 'ECHO is offline. The defense grid is silent; the survivors are on their way home.');
+      playCutscene(epilogue, () => {
+        game.victory = true;
+        setObjective('Mission complete', 4);
+        showOverlay(restored ? 'A Second Chance' : 'Mission Success', restored
+          ? 'You freed the survivors and gave ECHO a new purpose beyond the defense grid.'
+          : 'You restored the beacon, silenced the defense network, and guided Khepri’s survivors to safety.');
+        sound.success();
+      });
+    }
   });
 }
 
@@ -923,6 +1094,12 @@ function bindInput() {
 
   hud.cutsceneContinue.addEventListener('click', () => advanceCutscene());
   hud.cutsceneSkip.addEventListener('click', () => advanceCutscene(true));
+  hud.choiceRestore.addEventListener('click', () => {
+    if (game.cutsceneChoice) game.cutsceneChoice('restore');
+  });
+  hud.choicePurge.addEventListener('click', () => {
+    if (game.cutsceneChoice) game.cutsceneChoice('purge');
+  });
   document.body.addEventListener('click', () => sound.init());
 }
 
@@ -945,6 +1122,7 @@ function animate() {
 
   updateParticles(delta);
   updateSparkies(delta);
+  if (game.weapon) game.weapon.position.z = THREE.MathUtils.lerp(game.weapon.position.z, 0, Math.min(1, delta * 16));
   handleVictorySequence();
   updateHud();
   renderScene();
