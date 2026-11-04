@@ -34,6 +34,24 @@
       </div>
       <div id="crosshair"></div>
     </div>
+    <div id="touch-controls" aria-label="Touch controls">
+      <div id="move-pad" class="touch-pad" aria-label="Move joystick">
+        <div class="pad-ring"></div><div id="move-knob" class="pad-knob"></div>
+        <span class="pad-caption">MOVE</span>
+      </div>
+      <div id="look-pad" aria-label="Drag to look"></div>
+      <button id="fire-touch" class="touch-action" aria-label="Fire">FIRE</button>
+      <button id="interact-touch" class="touch-action interact" aria-label="Activate relay">USE</button>
+    </div>
+    <div id="cutscene-overlay" class="cutscene-overlay hidden">
+      <div class="cutscene-topline"><span>FIELD RECORDING</span><button id="skip-cutscene">SKIP ▶</button></div>
+      <div class="cutscene-card">
+        <div id="cutscene-kicker" class="cutscene-kicker">PROLOGUE</div>
+        <h1 id="cutscene-title">A signal in the dust</h1>
+        <p id="cutscene-copy"></p>
+        <div class="cutscene-footer"><span id="cutscene-progress"></span><button id="continue-cutscene">Continue <span>→</span></button></div>
+      </div>
+    </div>
     <div id="message-overlay" class="hidden">
       <div class="message-card">
         <h1 id="overlay-title">System Reset</h1>

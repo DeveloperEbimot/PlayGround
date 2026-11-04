@@ -9,7 +9,14 @@ const hud = {
   overlay: document.getElementById('message-overlay'),
   overlayTitle: document.getElementById('overlay-title'),
   overlayCopy: document.getElementById('overlay-copy'),
-  restart: document.getElementById('restart-btn')
+  restart: document.getElementById('restart-btn'),
+  cutscene: document.getElementById('cutscene-overlay'),
+  cutsceneKicker: document.getElementById('cutscene-kicker'),
+  cutsceneTitle: document.getElementById('cutscene-title'),
+  cutsceneCopy: document.getElementById('cutscene-copy'),
+  cutsceneProgress: document.getElementById('cutscene-progress'),
+  cutsceneContinue: document.getElementById('continue-cutscene'),
+  cutsceneSkip: document.getElementById('skip-cutscene')
 };
 
 const scene = new THREE.Scene();
@@ -99,8 +106,14 @@ const game = {
   relays: [],
   checkpoints: [],
   sparkies: [],
-  particles: []
+  particles: [],
+  cutsceneActive: false,
+  cutsceneQueue: [],
+  cutsceneDone: null,
+  core: null
 };
+
+const touch = { moveX: 0, moveY: 0, movePointer: null, lookPointer: null, lookX: 0, lookY: 0 };
 
 const keys = {
   forward: false,
@@ -112,7 +125,7 @@ const keys = {
 };
 
 const player = {
-  yaw: 0,
+  yaw: 0.5,
   pitch: -0.18,
   position: new THREE.Vector3(0, 1.8, 14),
   velocity: new THREE.Vector3(),
@@ -263,6 +276,36 @@ function makeRelay(position) {
   return { group, active: true, radius: 2.2, position: position.clone() };
 }
 
+function makeCore(position) {
+  const group = new THREE.Group();
+  const base = new THREE.Mesh(
+    new THREE.CylinderGeometry(2.1, 2.5, 0.6, 24),
+    new THREE.MeshStandardMaterial({ color: 0x26394a, metalness: 0.8, roughness: 0.3 })
+  );
+  const column = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.65, 0.9, 2.8, 16),
+    new THREE.MeshStandardMaterial({
+      color: 0x83a4b8,
+      emissive: 0x16465b,
+      emissiveIntensity: 0.8,
+      metalness: 0.8,
+      roughness: 0.24
+    })
+  );
+  const halo = new THREE.Mesh(
+    new THREE.TorusGeometry(1.25, 0.12, 12, 40),
+    new THREE.MeshStandardMaterial({ color: 0x7fe7ff, emissive: 0x7fe7ff, emissiveIntensity: 1.4 })
+  );
+  base.position.y = 0.3;
+  column.position.y = 1.8;
+  halo.position.y = 2.5;
+  halo.rotation.x = Math.PI / 2;
+  group.add(base, column, halo);
+  group.position.copy(position);
+  world.add(group);
+  return { group, position: position.clone() };
+}
+
 function makeEnemy(position, color = 0xff5d5d) {
   const group = new THREE.Group();
   const body = new THREE.Mesh(
@@ -353,12 +396,13 @@ function setupLevel() {
   const relayLocations = [
     new THREE.Vector3(-10, 0, -4),
     new THREE.Vector3(10, 0, -10),
-    new THREE.Vector3(0, 0, 12)
+    new THREE.Vector3(0, 0, 7)
   ];
 
   relayLocations.forEach((pos) => {
     game.relays.push(makeRelay(pos));
   });
+  game.core = makeCore(new THREE.Vector3(0, 0, 0));
 
   const checkpointLocations = [
     new THREE.Vector3(-12, 0, 10),
@@ -408,6 +452,40 @@ function hideOverlay() {
   hud.overlay.classList.add('hidden');
 }
 
+function renderCutscene() {
+  const sceneData = game.cutsceneQueue[0];
+  if (!sceneData) {
+    game.cutsceneActive = false;
+    document.body.classList.remove('cutscene-playing');
+    hud.cutscene.classList.add('hidden');
+    const done = game.cutsceneDone;
+    game.cutsceneDone = null;
+    if (done) done();
+    return;
+  }
+  hud.cutsceneKicker.textContent = sceneData.kicker;
+  hud.cutsceneTitle.textContent = sceneData.title;
+  hud.cutsceneCopy.textContent = sceneData.copy;
+  hud.cutsceneProgress.textContent = sceneData.progress || 'IRON RECLAIMER  •  FIELD RECORDING';
+  hud.cutsceneContinue.textContent = sceneData.button || 'Continue →';
+  game.cutsceneActive = true;
+  document.body.classList.add('cutscene-playing');
+  hud.cutscene.classList.remove('hidden');
+}
+
+function playCutscene(sceneData, done) {
+  game.cutsceneQueue = Array.isArray(sceneData) ? [...sceneData] : [sceneData];
+  game.cutsceneDone = done || null;
+  renderCutscene();
+}
+
+function advanceCutscene(skip = false) {
+  if (!game.cutsceneActive) return;
+  if (skip) game.cutsceneQueue = [];
+  else game.cutsceneQueue.shift();
+  renderCutscene();
+}
+
 function setObjective(text, idx) {
   game.currentObjective = text;
   game.objectiveIndex = idx;
@@ -415,10 +493,20 @@ function setObjective(text, idx) {
 }
 
 function beginMission() {
-  sound.init();
-  sound.pulse();
-  updateStory('The wrecked relay station hums beneath the dust storm. Wake up and restore the three power relays before the last drone pack reaches the core.');
-  setObjective('Find the first relay', 0);
+  updateStory('A faint distress beacon repeats beneath the storm.');
+  setObjective('Listen to the field recording', 0);
+  playCutscene({
+    kicker: 'PROLOGUE  /  04:17 BEFORE SILENCE',
+    title: 'A signal in the dust',
+    copy: 'The mining moon of Khepri has gone dark. Three relay towers keep its evacuation beacon alive, but the station’s defense drones have mistaken every survivor for a threat. You are R-04, the last repair unit still answering the call.',
+    progress: 'CHAPTER 1  •  THE LAST SIGNAL',
+    button: 'Begin mission →'
+  }, () => {
+    sound.init();
+    sound.pulse();
+    updateStory('Restore all three relays, then restart the central beacon. The defense drones will hunt you across the station.');
+    setObjective('Find and activate Relay One', 0);
+  });
 }
 
 function getPointerDirection() {
@@ -431,6 +519,7 @@ function getPointerDirection() {
 }
 
 function fireWeapon() {
+  if (game.cutsceneActive || game.health <= 0 || game.victory) return;
   const now = performance.now();
   if (now - game.lastShotAt < 180) {
     return;
@@ -503,13 +592,7 @@ function damagePlayer(amount) {
 
 function activateRelay(index) {
   const relay = game.relays[index];
-  if (!relay || !relay.active) {
-    return;
-  }
-  const dist = relay.position.distanceTo(player.position);
-  if (dist > 4) {
-    return;
-  }
+  if (index !== game.relayCount || !relay || !relay.active || relay.position.distanceTo(player.position) > 4.5) return;
 
   relay.active = false;
   relay.group.visible = false;
@@ -518,17 +601,67 @@ function activateRelay(index) {
   createParticles(relay.position.clone(), 0x7fe7ff);
 
   if (game.relayCount === 1) {
-    setObjective('Reach the central vault', 1);
-    updateStory('The first relay stabilizes. Storm interference is weakening; move to the central vault to restore the secondary line.');
+    setObjective('Reach and activate Relay Two', 1);
+    updateStory('Relay One is stable. A fragment of the evacuation beacon comes through: the survivors are sheltering in the old transit vault.');
+    playCutscene({
+      kicker: 'CHAPTER 1  /  RELAY ONE ONLINE',
+      title: 'Voices on the carrier wave',
+      copy: '“R-04, if you can hear us, the vault doors are holding.” The message is weak but real. The first relay locks into place, and the beacon points deeper into the crater.',
+      progress: 'FIELD RECORDING  01 / 03'
+    });
   } else if (game.relayCount === 2) {
-    setObjective('Reach the final relay', 2);
-    updateStory('Power is returning to the station. One relay remains at the far side of the crater.');
+    setObjective('Reach and activate Relay Three', 2);
+    updateStory('The second relay opens a route through the storm. The station’s old caretaker AI has been steering the drones toward the beacon.');
+    playCutscene({
+      kicker: 'CHAPTER 2  /  RELAY TWO ONLINE',
+      title: 'The station wakes',
+      copy: 'A caretaker’s voice breaks through the static: “I was protecting the colony.” Its corrupted defense network has sealed the core. One relay remains—the last link between the survivors and a safe route home.',
+      progress: 'FIELD RECORDING  02 / 03'
+    });
   } else {
-    setObjective('Return to the core', 3);
-    updateStory('All relays are online. The core can now be restarted. Return to the central platform and finish the restore sequence.');
+    setObjective('Return to the central core and press USE', 3);
+    updateStory('All three relays are aligned. Return to the central core and restart the evacuation beacon.');
+    playCutscene({
+      kicker: 'CHAPTER 3  /  ALL RELAYS ONLINE',
+      title: 'One last command',
+      copy: 'The storm thins. Beyond the sealed doors, hundreds of life-signs answer the beacon. The caretaker releases the core lock: “R-04… finish what I could not.” Return to the central platform and transmit the evacuation code.',
+      progress: 'FINAL OBJECTIVE UNLOCKED',
+      button: 'To the core →'
+    });
+  }
+  updateHud();
+}
+
+function activateCore() {
+  if (game.relayCount < game.relays.length || !game.core) return;
+  if (game.core.position.distanceTo(player.position) > 4.5) return;
+  updateStory('Core access granted. Transmitting evacuation code…');
+  setObjective('Transmit the evacuation code', 4);
+  soundsForRelay();
+  playCutscene({
+    kicker: 'EPILOGUE  /  BEACON RESTORED',
+    title: 'The last light',
+    copy: 'The central beacon ignites. Across Khepri, shelter doors open and the survivors answer one by one. The caretaker’s drones power down as R-04 sends the final shuttle coordinates into the night.',
+    progress: 'MISSION COMPLETE',
+    button: 'Finish →'
+  }, () => {
     game.victory = true;
-    showOverlay('Mission Success', 'The station hums back to life. You restored the core and saved the last autonomous line.');
+    updateStory('The evacuation beacon is live. The survivors are going home.');
+    setObjective('Mission complete', 4);
+    showOverlay('Mission Success', 'You restored the relays, brought the caretaker back from the edge, and guided Khepri’s survivors to safety.');
     sound.success();
+  });
+}
+
+function interact() {
+  if (game.cutsceneActive || game.health <= 0 || game.victory) return;
+  const nextRelay = game.relays[game.relayCount];
+  if (nextRelay && nextRelay.active && nextRelay.position.distanceTo(player.position) <= 4.5) {
+    activateRelay(game.relayCount);
+    return;
+  }
+  if (game.relayCount === game.relays.length && game.core && game.core.position.distanceTo(player.position) <= 4.5) {
+    activateCore();
   }
 }
 
@@ -545,9 +678,6 @@ function updateRelays() {
     }
     relay.group.rotation.y += 0.05;
     relay.group.position.y = Math.sin((performance.now() * 0.002) + i) * 0.3;
-    if (relay.position.distanceTo(player.position) < 3.4) {
-      activateRelay(i);
-    }
   }
 }
 
@@ -606,12 +736,12 @@ function updateSparkies(delta) {
 }
 
 function updatePlayer(delta) {
-  if (game.victory) {
+  if (game.victory || game.cutsceneActive) {
     return;
   }
 
-  let moveX = 0;
-  let moveZ = 0;
+  let moveX = touch.moveX;
+  let moveZ = touch.moveY;
 
   if (keys.forward) moveZ -= 1;
   if (keys.backward) moveZ += 1;
@@ -648,14 +778,7 @@ function updatePlayer(delta) {
   player.invuln = Math.max(0, player.invuln - delta);
   player.fireCooldown = Math.max(0, player.fireCooldown - delta);
 
-  const look = new THREE.Vector3(
-    Math.sin(player.yaw) * Math.cos(player.pitch),
-    Math.sin(player.pitch),
-    Math.cos(player.yaw) * Math.cos(player.pitch)
-  );
-  camera.position.copy(player.position);
-  camera.position.y += 0.65;
-  camera.lookAt(camera.position.clone().add(look));
+  updateCamera();
 }
 
 function updateCamera() {
@@ -678,45 +801,128 @@ function handlePointerMove(event) {
 
 function bindInput() {
   window.addEventListener('keydown', (event) => {
+    if (game.cutsceneActive) {
+      if (event.code === 'Enter' || event.code === 'Space') advanceCutscene();
+      return;
+    }
     if (event.repeat) return;
-    if (event.code === 'KeyE') {
-      sound.init();
-      sound.pulse();
-    }
-    if (event.code === 'KeyR') {
-      location.reload();
-    }
+    if (event.code === 'KeyR') location.reload();
     if (event.code === 'Space') {
+      keys.fire = true;
+      sound.init();
       fireWeapon();
     }
-    if (event.code === 'KeyW') keys.forward = true;
-    if (event.code === 'KeyS') keys.backward = true;
-    if (event.code === 'KeyA') keys.left = true;
-    if (event.code === 'KeyD') keys.right = true;
+    if (event.code === 'KeyW' || event.code === 'ArrowUp') keys.forward = true;
+    if (event.code === 'KeyS' || event.code === 'ArrowDown') keys.backward = true;
+    if (event.code === 'KeyA' || event.code === 'ArrowLeft') keys.left = true;
+    if (event.code === 'KeyD' || event.code === 'ArrowRight') keys.right = true;
     if (event.code === 'ShiftLeft' || event.code === 'ShiftRight') keys.sprint = true;
-    if (event.code === 'KeyF') {
-      if (game.relays.some((relay) => relay.active && relay.position.distanceTo(player.position) < 3.2)) {
-        const relay = game.relays.find((r) => r.active && r.position.distanceTo(player.position) < 3.2);
-        if (relay) activateRelay(game.relays.indexOf(relay));
-      }
+    if (event.code === 'KeyF' || event.code === 'KeyE') {
+      sound.init();
+      interact();
     }
   });
 
   window.addEventListener('keyup', (event) => {
-    if (event.code === 'KeyW') keys.forward = false;
-    if (event.code === 'KeyS') keys.backward = false;
-    if (event.code === 'KeyA') keys.left = false;
-    if (event.code === 'KeyD') keys.right = false;
+    if (event.code === 'Space') keys.fire = false;
+    if (event.code === 'KeyW' || event.code === 'ArrowUp') keys.forward = false;
+    if (event.code === 'KeyS' || event.code === 'ArrowDown') keys.backward = false;
+    if (event.code === 'KeyA' || event.code === 'ArrowLeft') keys.left = false;
+    if (event.code === 'KeyD' || event.code === 'ArrowRight') keys.right = false;
     if (event.code === 'ShiftLeft' || event.code === 'ShiftRight') keys.sprint = false;
   });
 
-  window.addEventListener('mousedown', () => {
+  window.addEventListener('mousedown', (event) => {
+    if (event.target.closest('#touch-controls')) return;
     sound.init();
     fireWeapon();
   });
-
   window.addEventListener('mousemove', handlePointerMove);
   window.addEventListener('contextmenu', (event) => event.preventDefault());
+
+  const movePad = document.getElementById('move-pad');
+  const moveKnob = document.getElementById('move-knob');
+  const lookPad = document.getElementById('look-pad');
+  const fireButton = document.getElementById('fire-touch');
+  const interactButton = document.getElementById('interact-touch');
+
+  const updateMove = (event) => {
+    const rect = movePad.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    const max = rect.width * 0.34;
+    const dx = event.clientX - centerX;
+    const dy = event.clientY - centerY;
+    const length = Math.hypot(dx, dy) || 1;
+    const scale = Math.min(1, max / length);
+    touch.moveX = (dx * scale) / max;
+    touch.moveY = (dy * scale) / max;
+    moveKnob.style.transform = `translate(${dx * scale}px, ${dy * scale}px)`;
+  };
+  const resetMove = (event) => {
+    if (touch.movePointer !== event.pointerId) return;
+    touch.movePointer = null;
+    touch.moveX = 0;
+    touch.moveY = 0;
+    moveKnob.style.transform = '';
+  };
+
+  movePad.addEventListener('pointerdown', (event) => {
+    event.preventDefault();
+    touch.movePointer = event.pointerId;
+    movePad.setPointerCapture(event.pointerId);
+    updateMove(event);
+  });
+  movePad.addEventListener('pointermove', (event) => {
+    if (touch.movePointer === event.pointerId) updateMove(event);
+  });
+  movePad.addEventListener('pointerup', resetMove);
+  movePad.addEventListener('pointercancel', resetMove);
+
+  lookPad.addEventListener('pointerdown', (event) => {
+    event.preventDefault();
+    touch.lookPointer = event.pointerId;
+    touch.lookX = event.clientX;
+    touch.lookY = event.clientY;
+    lookPad.setPointerCapture(event.pointerId);
+    sound.init();
+  });
+  lookPad.addEventListener('pointermove', (event) => {
+    if (touch.lookPointer !== event.pointerId || game.cutsceneActive) return;
+    player.yaw -= (event.clientX - touch.lookX) * 0.006;
+    player.pitch = THREE.MathUtils.clamp(player.pitch - (event.clientY - touch.lookY) * 0.0045, -1.2, 1.2);
+    touch.lookX = event.clientX;
+    touch.lookY = event.clientY;
+  });
+  const stopLook = (event) => {
+    if (touch.lookPointer === event.pointerId) touch.lookPointer = null;
+  };
+  lookPad.addEventListener('pointerup', stopLook);
+  lookPad.addEventListener('pointercancel', stopLook);
+
+  fireButton.addEventListener('pointerdown', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    fireButton.setPointerCapture(event.pointerId);
+    sound.init();
+    keys.fire = true;
+    fireWeapon();
+  });
+  const stopFire = (event) => {
+    event.preventDefault();
+    keys.fire = false;
+  };
+  fireButton.addEventListener('pointerup', stopFire);
+  fireButton.addEventListener('pointercancel', stopFire);
+  interactButton.addEventListener('pointerdown', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    sound.init();
+    interact();
+  });
+
+  hud.cutsceneContinue.addEventListener('click', () => advanceCutscene());
+  hud.cutsceneSkip.addEventListener('click', () => advanceCutscene(true));
   document.body.addEventListener('click', () => sound.init());
 }
 
@@ -730,8 +936,9 @@ function animate() {
   const delta = Math.min(clock.getDelta(), 0.033);
   game.time += delta;
 
-  if (!game.victory && game.health > 0) {
+  if (!game.victory && !game.cutsceneActive && game.health > 0) {
     updatePlayer(delta);
+    if (keys.fire) fireWeapon();
     updateEnemies(delta);
     updateRelays();
   }
@@ -746,6 +953,7 @@ function animate() {
 
 function initialize() {
   setupLevel();
+  updateCamera();
   beginMission();
   bindInput();
   updateHud();
