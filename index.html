@@ -44,8 +44,13 @@
           <div id="scene-container" aria-label="Interactive 3D view of the presidential office"></div>
           <div class="scene-vignette"></div>
           <div class="scene-topline"><span class="camera-tag">● LIVE FEED</span><span class="view-tag" id="view-tag">WEST WING · GROUND FLOOR</span></div>
-          <div class="scene-hint" id="scene-hint"><span>✦</span> Select a room or tap a highlighted object to explore</div>
-          <div class="scene-bottom"><span id="scene-location">THE PEOPLE'S HOUSE</span><span>◉ &nbsp; DRAG TO LOOK AROUND</span></div>
+          <div class="scene-hint" id="scene-hint"><span>✦</span> Walk with WASD / arrows · look by dragging · approach someone and press E to talk</div>
+          <div class="interaction-prompt" id="interaction-prompt" aria-live="polite"></div>
+          <div class="walk-controls" id="walk-controls" aria-label="Touch movement controls">
+            <div class="move-pad"><button data-move="forward" aria-label="Move forward">▲</button><div><button data-move="left" aria-label="Move left">◀</button><button data-move="back" aria-label="Move backward">▼</button><button data-move="right" aria-label="Move right">▶</button></div></div>
+            <button class="talk-button" id="talk-button">TALK</button>
+          </div>
+          <div class="scene-bottom"><span id="scene-location">THE PEOPLE'S HOUSE</span><span>◉ &nbsp; WASD TO WALK · DRAG TO LOOK</span></div>
           <div class="scene-loader" id="scene-loader"><span class="loader-orbit"></span><span>PREPARING YOUR OFFICE</span></div>
         </div>
         <div class="lower-strip">
