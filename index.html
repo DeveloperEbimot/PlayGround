@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#101a27" />
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <title>The Oval — A President Simulator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="#" aria-label="The Oval home">
+        <span class="brand-mark">O</span>
+        <span><b>THE OVAL</b><small>OFFICE OF THE PRESIDENT</small></span>
+      </a>
+      <div class="top-center"><span class="live-dot"></span><span id="term-label">FIRST TERM</span><i></i><span id="date-label">JAN 20 · YEAR 1</span></div>
+      <div class="top-actions">
+        <div class="turn-pill"><span class="turn-icon">◷</span><span><b id="action-label">2</b> <small>DECISIONS LEFT</small></span></div>
+        <button class="icon-button" id="save-button" aria-label="Save game" title="Save game">⌑</button>
+        <button class="menu-button" id="menu-button" aria-label="Open menu">•••</button>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <aside class="left-rail">
+        <div class="rail-heading">YOUR WHITE HOUSE</div>
+        <button class="room-tab active" data-room="office"><span class="room-icon">⌂</span><span><b>Oval Office</b><small>THE EXECUTIVE</small></span><span class="tab-arrow">›</span></button>
+        <button class="room-tab" data-room="war"><span class="room-icon">⌖</span><span><b>Situation Room</b><small>NATIONAL SECURITY</small></span><span class="tab-arrow">›</span></button>
+        <button class="room-tab" data-room="press"><span class="room-icon">◉</span><span><b>Press Briefing</b><small>PUBLIC AFFAIRS</small></span><span class="tab-arrow">›</span></button>
+        <div class="rail-divider"></div>
+        <button class="rail-link" id="agenda-button"><span>▤</span> Weekly agenda</button>
+        <button class="rail-link" id="record-button"><span>≡</span> Decision record</button>
+        <div class="rail-bottom"><div class="seal">✦</div><p>THE REPUBLIC<br /><b>One nation, many voices.</b></p></div>
+      </aside>
+
+      <section class="scene-column">
+        <div class="scene-heading"><div><div class="eyebrow" id="room-kicker">THE EXECUTIVE RESIDENCE</div><h1 id="room-title">The Oval Office</h1></div><div class="scene-caption"><span class="small-signal"></span><span id="room-subtitle">WASHINGTON, D.C. · 9:41 AM</span></div></div>
+        <div class="scene-frame">
+          <div id="scene-container" aria-label="Interactive 3D view of the presidential office"></div>
+          <div class="scene-vignette"></div>
+          <div class="scene-topline"><span class="camera-tag">● LIVE FEED</span><span class="view-tag" id="view-tag">WEST WING · GROUND FLOOR</span></div>
+          <div class="scene-hint" id="scene-hint"><span>✦</span> Select a room or tap a highlighted object to explore</div>
+          <div class="scene-bottom"><span id="scene-location">THE PEOPLE'S HOUSE</span><span>◉ &nbsp; DRAG TO LOOK AROUND</span></div>
+          <div class="scene-loader" id="scene-loader"><span class="loader-orbit"></span><span>PREPARING YOUR OFFICE</span></div>
+        </div>
+        <div class="lower-strip">
+          <div class="headline-mark">THE<br />BRIEF</div>
+          <div class="headline-content"><span class="eyebrow">NATIONAL DESK · WEEK <b id="week-number">01</b></span><p id="headline-text">A new administration begins. The country is watching, and the work starts now.</p></div>
+          <button class="next-week" id="next-week"><span>Advance week</span><b>→</b></button>
+        </div>
+      </section>
+
+      <aside class="right-panel">
+        <div class="panel-scroll">
+          <div class="panel-title-row"><div><div class="eyebrow">YOUR COUNTRY</div><h2>National pulse</h2></div><button class="more-button" id="stats-info" aria-label="About national pulse">i</button></div>
+          <div class="approval-card"><div><span class="eyebrow">PUBLIC APPROVAL</span><strong id="approval-value">54<span>%</span></strong></div><div class="approval-chart"><svg viewBox="0 0 120 44" preserveAspectRatio="none" aria-hidden="true"><path id="chart-area" d=""/><path id="chart-line" d=""/></svg><span id="approval-change">+0.0 THIS WEEK</span></div></div>
+          <div class="stat-list" id="stat-list"></div>
+          <div class="panel-rule"></div>
+          <div class="decision-heading"><div><div class="eyebrow">ON YOUR DESK</div><h2 id="decision-room-title">Decisions</h2></div><span class="ap-chip"><b id="ap-chip">2</b> AP</span></div>
+          <p class="decision-intro" id="decision-intro">The papers are ready. What will you put your name to?</p>
+          <div class="decision-list" id="decision-list"></div>
+          <div class="cabinet-note"><span class="note-icon">✦</span><div><b>From your Chief of Staff</b><p id="advisor-note">“The first week sets the tone. Choose what matters most.”</p></div></div>
+          <button class="end-turn-button" id="end-turn-button"><span>Move to next week</span><b>→</b></button>
+          <div class="fine-print">Every decision has a consequence. Lead accordingly.</div>
+        </div>
+      </aside>
+    </main>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <div class="modal-backdrop hidden" id="modal-backdrop"><div class="modal" id="modal" role="dialog" aria-modal="true"></div></div>
+  </div>
+  <script type="module" src="game.js"></script>
+</body>
+</html>
