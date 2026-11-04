@@ -93,7 +93,7 @@ function advanceWeek(){
   if(game.week>208){game.finished=true;showFinal();}
   save();render();toast('A new week begins. Your cabinet is ready.');
 }
-function openModal(html){$('modal').innerHTML=html;$('modal-backdrop').classList.remove('hidden');$('modal').querySelector('.modal-close')?.addEventListener('click',closeModal);}
+function openModal(html){$('modal').innerHTML=html;$('modal-backdrop').classList.remove('hidden');$('modal').querySelectorAll('.modal-close').forEach(button=>button.addEventListener('click',closeModal));}
 function closeModal(){$('modal-backdrop').classList.add('hidden');}
 function openLog(){openModal(`<button class="modal-close" aria-label="Close">×</button><div class="eyebrow">A RECORD OF YOUR PRESIDENCY</div><h2>Decision record</h2><p>Every action leaves a mark. Here is what your administration has done.</p><div class="log-list">${game.log.length?game.log.map(x=>`<div class="log-entry"><b>WEEK ${String(x.week).padStart(2,'0')} · ${x.room}</b><p><strong>${x.title}</strong> — ${x.text}</p></div>`).join(''):'<p>No decisions yet. Your first week is a blank page.</p>'}</div><div class="modal-actions"><button class="secondary modal-close">Close</button></div>`);}
 function openAgenda(){openModal(`<button class="modal-close" aria-label="Close">×</button><div class="eyebrow">WEEK ${String(game.week).padStart(2,'0')} · THE WEST WING</div><h2>Weekly agenda</h2><p>Your schedule is yours to shape. Each week gives you two decision points. Choose from policy, security, and public engagement in any order.</p><div class="agenda-grid"><div class="agenda-cell"><span>MON · OVAL OFFICE</span><b>Domestic priorities</b></div><div class="agenda-cell"><span>TUE · SITUATION ROOM</span><b>Security briefing</b></div><div class="agenda-cell"><span>WED · CABINET ROOM</span><b>Economic outlook</b></div><div class="agenda-cell"><span>FRI · PRESS ROOM</span><b>Speak to the nation</b></div></div><div class="modal-actions"><button class="modal-close">Back to work</button></div>`);}
@@ -111,15 +111,41 @@ render();
 
 // Three.js builds the room-scale, walk-in White House scenes. A canvas illustration is used if WebGL or the CDN is unavailable.
 let THREE, renderer, scene, camera, roomGroup, raycaster, pointer, controls, dragging=false, lastX=0, lookOffset=0, activeTargets=[];
+const player={x:0,z:3.45,yaw:0};
+let nearbyNpc=null, moveVector={forward:0,back:0,left:0,right:0}, lastMove=0;
+const npcRoster={
+  office:[
+    {name:'Chief of Staff Maya Chen',role:'Chief of Staff',color:'#384f68',x:-1.2,z:.75,lines:['The first week is about setting priorities. Which issue should we put at the top of the agenda?','I can bring the congressional leaders together before the week is out. What would you like me to emphasize?','The cabinet is ready to move. Your choices will shape the tone of this administration.']},
+    {name:'Secretary of State Daniel Reyes',role:'Secretary of State',color:'#6e5141',x:1.2,z:.75,lines:['Our allies are asking for steady leadership. I recommend opening a direct diplomatic channel.','Diplomacy takes patience, but it gives us more options than acting alone.','I have calls scheduled with our partners. Shall I share your priorities with them?']},
+  ],
+  war:[
+    {name:'Secretary of Defense Amina Patel',role:'Secretary of Defense',color:'#4e5e55',x:-3.5,z:.7,lines:['Our commanders are ready, but time and restraint are strategic advantages too.','The situation is tense. I recommend we coordinate closely with our allies before any escalation.','I can prepare options for you. We should keep humanitarian needs in view.']},
+    {name:'National Security Advisor James Okafor',role:'National Security Advisor',color:'#445a71',x:3.45,z:.65,lines:['The intelligence picture is still developing. We should be careful about what we assume.','A secure diplomatic channel could create room to de-escalate.','I will bring the principals together for a full briefing.']},
+    {name:'Chair of the Joint Chiefs',role:'Senior Military Advisor',color:'#6b5544',x:0,z:-3.15,lines:['Our service members are prepared. The decision on when and how to act is yours.','We will provide clear options and the risks attached to each.']}
+  ],
+  press:[
+    {name:'Press Secretary Nora Williams',role:'Press Secretary',color:'#724c45',x:-3.25,z:-.3,lines:['The press corps is ready. A clear, candid answer goes a long way.','We can prepare a briefing with verified facts and make the full report available.','The public wants to know what comes next. Let us explain the plan plainly.']},
+    {name:'Senior Correspondent Alex Morgan',role:'White House Correspondent',color:'#536273',x:3.25,z:.1,lines:['People at home want to know how this decision will affect their families.','Will you share how the administration plans to work with both parties?','The public deserves a straight answer. What should they expect next?']}
+  ]
+};
 const host=$('scene-container');
+function bindWalkControls(){
+  document.querySelectorAll('[data-move]').forEach(button=>{
+    const move=()=>{moveVector[button.dataset.move]=1;};
+    const stop=()=>{moveVector[button.dataset.move]=0;};
+    button.addEventListener('pointerdown',e=>{e.preventDefault();move();});
+    ['pointerup','pointercancel','pointerleave'].forEach(type=>button.addEventListener(type,stop));
+  });
+  window.addEventListener('pointerup',()=>{Object.keys(moveVector).forEach(key=>moveVector[key]=0);});
+}
 try { THREE=await import('https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js'); start3D(); }
 catch(error){ console.warn('3D renderer unavailable; using illustrated fallback.',error); startFallback(); }
 function start3D(){
   scene=new THREE.Scene();scene.background=new THREE.Color('#a9bac0');scene.fog=new THREE.Fog('#a9bac0',13,27);
-  camera=new THREE.PerspectiveCamera(43,1,.1,80);camera.position.set(0,2.15,8.5);
+  camera=new THREE.PerspectiveCamera(60,1,.1,80);camera.position.set(0,2.15,8.5);
   renderer=new THREE.WebGLRenderer({antialias:true,alpha:false});renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.12;host.replaceChildren(renderer.domElement);
   scene.add(new THREE.HemisphereLight('#f5eee0','#465463',2.2));const sun=new THREE.DirectionalLight('#fff0d4',3.3);sun.position.set(-4,8,5);sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);scene.add(sun);const fill=new THREE.DirectionalLight('#adc9db',1.2);fill.position.set(5,4,-4);scene.add(fill);
-  raycaster=new THREE.Raycaster();pointer=new THREE.Vector2();buildRoom(game.room);resize();window.addEventListener('resize',resize);renderer.domElement.addEventListener('pointerdown',onPointerDown);renderer.domElement.addEventListener('pointerup',onPointerUp);renderer.domElement.addEventListener('pointermove',onPointerMove);renderer.domElement.addEventListener('click',onSceneClick);animate();setTimeout(()=>$('scene-loader').classList.add('done'),450);
+  raycaster=new THREE.Raycaster();pointer=new THREE.Vector2();buildRoom(game.room);resize();window.addEventListener('resize',resize);renderer.domElement.addEventListener('pointerdown',onPointerDown);renderer.domElement.addEventListener('pointerup',onPointerUp);renderer.domElement.addEventListener('pointermove',onPointerMove);renderer.domElement.addEventListener('click',onSceneClick);bindWalkControls();window.addEventListener('keydown',onWalkKeyDown);window.addEventListener('keyup',onWalkKeyUp);$('talk-button').addEventListener('click',talkToNearby);animate();setTimeout(()=>$('scene-loader').classList.add('done'),450);
 }
 function resize(){if(!renderer)return;const w=host.clientWidth,h=host.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}
 function mat(color,roughness=.72,metalness=0){return new THREE.MeshStandardMaterial({color,roughness,metalness});}
@@ -127,6 +153,21 @@ function box(parent,name,pos,size,color,opts={}){const m=new THREE.Mesh(new THRE
 function cyl(parent,pos,r1,r2,h,color,segments=24){const m=new THREE.Mesh(new THREE.CylinderGeometry(r1,r2,h,segments),mat(color));m.position.set(...pos);m.castShadow=true;parent.add(m);return m;}
 function sphere(parent,pos,r,color){const m=new THREE.Mesh(new THREE.SphereGeometry(r,20,16),mat(color,.45));m.position.set(...pos);m.castShadow=true;parent.add(m);return m;}
 function targetBox(parent,name,pos,size,color){return box(parent,name,pos,size,color,{target:name});}
+function buildNpc(npc){
+  const person=new THREE.Group();person.position.set(npc.x,0,npc.z);person.userData.npc=npc;roomGroup.add(person);
+  const uniform=mat(npc.color), trousers=mat('#303944'), skin=mat('#bc9278'), hair=mat('#393531');
+  const part=(geometry,material,x,y,z)=>{const mesh=new THREE.Mesh(geometry,material);mesh.position.set(x,y,z);mesh.castShadow=true;mesh.receiveShadow=true;person.add(mesh);return mesh;};
+  part(new THREE.CylinderGeometry(.24,.31,.78,12),uniform,0,1.08,0);
+  part(new THREE.SphereGeometry(.22,16,12),skin,0,1.68,0);
+  part(new THREE.SphereGeometry(.225,16,10,0,Math.PI*2,0,Math.PI*.48),hair,0,1.76,-.015);
+  part(new THREE.BoxGeometry(.13,.5,.16),trousers,-.13,.42,0).rotation.z=-.03;
+  part(new THREE.BoxGeometry(.13,.5,.16),trousers,.13,.42,0).rotation.z=.03;
+  for(const x of [-.34,.34])part(new THREE.CylinderGeometry(.075,.085,.52,10),uniform,x,1.08,0).rotation.z=x*.28;
+  part(new THREE.BoxGeometry(.105,.12,.035),mat('#d2b778'),0,1.18,.245);
+  person.traverse(o=>{if(o.isMesh){o.userData.npc=npc;}});activeTargets.push(person);
+}
+function addRoomNpcs(){(npcRoster[game.room]||npcRoster.office).forEach(buildNpc);}
+function updateCamera(){if(!camera)return;camera.position.set(player.x,1.68,player.z);const yaw=player.yaw+lookOffset;camera.lookAt(player.x+Math.sin(yaw),1.58,player.z-Math.cos(yaw));}
 function clearRoom(){if(roomGroup){scene.remove(roomGroup);roomGroup.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material){if(Array.isArray(o.material))o.material.forEach(m=>m.dispose());else o.material.dispose();}});}activeTargets=[];roomGroup=new THREE.Group();scene.add(roomGroup);}
 function addRoomShell(wall='#e6dfd0',floor='#80664e'){
   const floorMesh=new THREE.Mesh(new THREE.PlaneGeometry(12,11),mat(floor));floorMesh.rotation.x=-Math.PI/2;floorMesh.position.y=0;floorMesh.receiveShadow=true;roomGroup.add(floorMesh);
@@ -166,7 +207,7 @@ function buildOffice(){
   for(const x of [-4.3,-2.35,2.35,4.3]){box(roomGroup,'wall panel',[x,3.55,-4.62],[1.45,2.7,.07],'#ddd3c1');box(roomGroup,'panel inset',[x,3.55,-4.56],[1.3,2.52,.04],'#e9e1d3');}
   addDesk('Executive desk');
   // visitor chair and armchairs
-  for(const x of [-1.45,1.45]){box(roomGroup,'visitor chair seat',[x,.72,1.05],[1,.2,.9],'#526259');box(roomGroup,'chair back',[x,1.27,1.43],[1,.95,.18],'#3e554b');for(const dx of [-.4,.4])box(roomGroup,'chair leg',[x+dx,.34,.75],[.08,.7,.08],'#5b402c');}
+  for(const x of [-2.25,2.25]){box(roomGroup,'visitor chair seat',[x,.72,1.05],[1,.2,.9],'#526259');box(roomGroup,'chair back',[x,1.27,1.43],[1,.95,.18],'#3e554b');for(const dx of [-.4,.4])box(roomGroup,'chair leg',[x+dx,.34,.75],[.08,.7,.08],'#5b402c');}
   box(roomGroup,'sofa seat',[3.15,.48,2.5],[2.1,.28,.7],'#82918a');box(roomGroup,'sofa back',[3.15,.86,2.78],[2.1,.58,.18],'#63756d');
   // flag, globe, side table and small details
   addFlag(-4.05,1.65,'#304d75');addFlag(-3.55,1.65,'#8e4f43');
@@ -204,14 +245,26 @@ function buildPress(){
   for(const x of [-4,4]){box(roomGroup,'camera body',[x,1.9,-.3],[.58,.4,.5],'#222d32');sphere(roomGroup,[x,1.9,-.02],.19,'#172227');for(const dx of [-.3,.3])box(roomGroup,'tripod',[x+dx,.77,-.3],[.045,1.6,.045],'#343a3b');}
   targetBox(roomGroup,'Press podium',[0,1.36,-1.6],[1.85,1.2,.9],'#855f40');
 }
-function buildRoom(name){clearRoom();if(name==='war')buildWar();else if(name==='press')buildPress();else buildOffice();camera.position.set(Math.sin(lookOffset)*1.7,2.15,8.5);camera.lookAt(0,1.75,-.75);resize();}
-function createRoom(name){if(THREE&&renderer){buildRoom(name);$('scene-hint').style.opacity='1';setTimeout(()=>$('scene-hint').style.opacity='0',2800);}else drawFallback(name);}
-function onPointerDown(e){dragging=true;lastX=e.clientX;renderer.domElement.setPointerCapture(e.pointerId);}
+function buildRoom(name){clearRoom();player.x=0;player.z=3.45;player.yaw=0;lookOffset=0;nearbyNpc=null;if(name==='war')buildWar();else if(name==='press')buildPress();else buildOffice();addRoomNpcs();updateCamera();resize();}
+function createRoom(name){if(THREE&&renderer){buildRoom(name);$('interaction-prompt').innerHTML='';$('scene-hint').style.opacity='1';setTimeout(()=>$('scene-hint').style.opacity='0',4500);}else{player.x=0;player.z=3.45;player.yaw=0;nearbyNpc=null;drawFallback(name);updateNearbyNpc();}}
+function onPointerDown(e){if(e.target.closest('.walk-controls'))return;dragging=true;lastX=e.clientX;renderer.domElement.setPointerCapture(e.pointerId);}
 function onPointerUp(){dragging=false;}
-function onPointerMove(e){if(!dragging)return;lookOffset=Math.max(-.55,Math.min(.55,lookOffset+(e.clientX-lastX)*.004));lastX=e.clientX;camera.position.x=Math.sin(lookOffset)*1.7;camera.lookAt(0,1.75,-.75);}
-function onSceneClick(e){const r=renderer.domElement.getBoundingClientRect();pointer.x=((e.clientX-r.left)/r.width)*2-1;pointer.y=-((e.clientY-r.top)/r.height)*2+1;raycaster.setFromCamera(pointer,camera);const hit=raycaster.intersectObjects(activeTargets,true)[0];if(hit){const name=hit.object.userData.target;const tab=name.includes('Press')?'press':name.includes('Crisis')?'war':'office';if(tab!==game.room){game.room=tab;render();}toast(`${name} · Choose an action from your desk`);$('scene-hint').style.opacity='1';setTimeout(()=>$('scene-hint').style.opacity='0',2300);}}
-function animate(){requestAnimationFrame(animate);if(renderer){renderer.render(scene,camera);}}
-function startFallback(){const canvas=document.createElement('canvas');canvas.className='fallback-scene';host.replaceChildren(canvas);function fit(){const dpr=Math.min(devicePixelRatio||1,2),w=host.clientWidth,h=host.clientHeight;canvas.width=w*dpr;canvas.height=h*dpr;canvas.style.width=w+'px';canvas.style.height=h+'px';const c=canvas.getContext('2d');c.scale(dpr,dpr);drawFallback(game.room,c,w,h);}window.addEventListener('resize',fit);canvas.addEventListener('click',()=>toast('Choose a decision from your desk to lead the country.'));window.drawFallback=drawFallback;fit();setTimeout(()=>$('scene-loader').classList.add('done'),300);}
+function onPointerMove(e){if(!dragging)return;player.yaw=Math.max(-1.35,Math.min(1.35,player.yaw+(e.clientX-lastX)*.004));lastX=e.clientX;updateCamera();}
+function onWalkKeyDown(e){const key=e.key.toLowerCase(),map={w:'forward',arrowup:'forward',s:'back',arrowdown:'back',a:'left',arrowleft:'left',d:'right',arrowright:'right'};if(map[key]){e.preventDefault();moveVector[map[key]]=1;}if(key==='e'||key==='enter')talkToNearby();}
+function onWalkKeyUp(e){const map={w:'forward',arrowup:'forward',s:'back',arrowdown:'back',a:'left',arrowleft:'left',d:'right',arrowright:'right'};if(map[e.key.toLowerCase()])moveVector[map[e.key.toLowerCase()]]=0;}
+function blocked(x,z){if(Math.abs(x)>4.65||z< -4.15||z>4.18)return true;
+  if(game.room==='office'&&x> -1.78&&x<1.78&&z> -1.38&&z<.48)return true;
+  if(game.room==='war'&&Math.abs(x)<2.35&&z> -1.72&&z<1.52)return true;
+  if(game.room==='press'&&Math.abs(x)<1.12&&z> -2.35&&z< -1.05)return true;
+  return false;
+}
+function distanceTo(a,b){return Math.hypot(a.x-b.x,a.z-b.z);}
+function movePlayer(dt){if($('modal-backdrop')&&!$('modal-backdrop').classList.contains('hidden'))return;let forward=moveVector.forward-moveVector.back,side=moveVector.right-moveVector.left;if(!forward&&!side)return;const mag=Math.hypot(forward,side);forward/=mag;side/=mag;const yaw=player.yaw+lookOffset,speed=3.15*dt;const dx=(Math.sin(yaw)*forward+Math.cos(yaw)*side)*speed,dz=(-Math.cos(yaw)*forward+Math.sin(yaw)*side)*speed;const nx=player.x+dx,nz=player.z+dz;if(!blocked(nx,player.z))player.x=nx;if(!blocked(player.x,nz))player.z=nz;updateCamera();if(!renderer)drawFallback(game.room);}
+function updateNearbyNpc(){const people=(npcRoster[game.room]||[]);let next=null,best=2.1;for(const npc of people){const d=distanceTo(player,npc);if(d<best){best=d;next=npc;}}if(next!==nearbyNpc){nearbyNpc=next;$('interaction-prompt').innerHTML=next?`<b>${next.name}</b><span>${next.role} · Press <kbd>E</kbd> or tap Talk</span>`:'';}}
+function talkToNearby(){if(!nearbyNpc){toast('Walk closer to a minister or advisor to talk.');return;}const npc=nearbyNpc;const line=npc.lines[(game.week+game.log.length)%npc.lines.length];openModal(`<button class="modal-close" aria-label="Close">×</button><div class="eyebrow">PRIVATE CONVERSATION · WEEK ${String(game.week).padStart(2,'0')}</div><h2>${npc.name}</h2><p class="conversation-role">${npc.role}</p><blockquote class="conversation-quote">“${line}”</blockquote><div class="conversation-options"><button data-reply="policy">Discuss the weekly agenda</button><button class="secondary" data-reply="listen">Ask for their recommendation</button></div><div class="modal-actions"><button class="modal-close">End conversation</button></div>`);$('modal').querySelectorAll('[data-reply]').forEach(button=>button.addEventListener('click',()=>{const reply=button.dataset.reply==='policy'?'You share your priorities. Your advisor will prepare options for the next briefing.':'You ask for a candid recommendation. The conversation is added to your presidential record.';if(button.dataset.reply==='listen'){game.log.unshift({week:game.week,room:rooms[game.room].title,title:`Conversation with ${npc.name}`,text:line});save();}toast(reply);closeModal();}));}
+function onSceneClick(e){const r=renderer.domElement.getBoundingClientRect();pointer.x=((e.clientX-r.left)/r.width)*2-1;pointer.y=-((e.clientY-r.top)/r.height)*2+1;raycaster.setFromCamera(pointer,camera);const hit=raycaster.intersectObjects(activeTargets,true)[0];if(!hit)return;const npc=hit.object.userData.npc||hit.object.parent?.userData.npc;if(npc){if(distanceTo(player,npc)<=2.1){nearbyNpc=npc;talkToNearby();}else toast(`Walk closer to ${npc.name} to talk.`);return;}const name=hit.object.userData.target;if(name){const tab=name.includes('Press')?'press':name.includes('Crisis')?'war':'office';if(tab!==game.room){game.room=tab;render();createRoom(tab);}toast(`${name} · Use the decision panel to take action`);}}
+function animate(){requestAnimationFrame(animate);if(renderer){const now=performance.now(),dt=Math.min(.05,(now-lastMove)/1000||0);lastMove=now;movePlayer(dt);updateNearbyNpc();renderer.render(scene,camera);}}
+function startFallback(){const canvas=document.createElement('canvas');canvas.className='fallback-scene';host.replaceChildren(canvas);function fit(){const dpr=Math.min(devicePixelRatio||1,2),w=host.clientWidth,h=host.clientHeight;canvas.width=w*dpr;canvas.height=h*dpr;canvas.style.width=w+'px';canvas.style.height=h+'px';const c=canvas.getContext('2d');c.scale(dpr,dpr);drawFallback(game.room,c,w,h);}window.addEventListener('resize',fit);window.drawFallback=drawFallback;bindWalkControls();window.addEventListener('keydown',onWalkKeyDown);window.addEventListener('keyup',onWalkKeyUp);$('talk-button').addEventListener('click',talkToNearby);fit();updateNearbyNpc();function fallbackAnimate(){const now=performance.now(),dt=Math.min(.05,(now-lastMove)/1000||0);lastMove=now;movePlayer(dt);updateNearbyNpc();requestAnimationFrame(fallbackAnimate);}requestAnimationFrame(fallbackAnimate);$('scene-hint').innerHTML='<span>✦</span> Walk with WASD / arrows or the pad · approach someone and press E or Talk';$('scene-hint').style.opacity='1';setTimeout(()=>$('scene-loader').classList.add('done'),300);}
 function drawFallback(name,ctx,w,h){
   const canvas=host.querySelector('canvas');if(!ctx&&canvas){const dpr=Math.min(devicePixelRatio||1,2);ctx=canvas.getContext('2d');w=host.clientWidth;h=host.clientHeight;canvas.width=w*dpr;canvas.height=h*dpr;canvas.style.width=w+'px';canvas.style.height=h+'px';ctx.scale(dpr,dpr);}if(!ctx)return;
   const room=name==='war'?'war':name==='press'?'press':'office';const g=ctx;g.clearRect(0,0,w,h);
@@ -233,6 +286,17 @@ function drawFallback(name,ctx,w,h){
   }else{
     g.fillStyle='#34516a';g.fillRect(w*.13,h*.12,w*.74,h*.42);g.strokeStyle='#c9ad72';g.strokeRect(w*.13,h*.12,w*.74,h*.42);for(let x=.17;x<.86;x+=.07){for(let y=.17;y<.5;y+=.07){g.fillStyle='#d5c795';g.font='10px sans-serif';g.fillText('✦',w*x,h*y);}}g.fillStyle='#c6a96a';g.beginPath();g.arc(w*.5,h*.3,w*.06,0,Math.PI*2);g.fill();g.fillStyle='#76543a';g.fillRect(w*.43,h*.52,w*.14,h*.29);g.fillStyle='#9b7550';g.fillRect(w*.4,h*.52,w*.2,h*.07);g.fillStyle='#3b5267';for(const x of [.2,.32,.68,.8]){g.fillRect(w*x,h*.7,w*.1,h*.14);g.fillRect(w*x,h*.65,w*.1,h*.08);}
   }
+  // Simple, walk-up advisor portraits keep conversations available without WebGL.
+  (npcRoster[room]||[]).forEach(npc=>{
+    const distance=distanceTo(player,npc),scale=Math.max(.72,Math.min(1.35,1.35-distance*.08));
+    const x=w/2+(npc.x-player.x)*w*.105*scale,y=h*.69+(npc.z-player.z)*h*.027;
+    if(x<-45||x>w+45||y<h*.28||y>h*.88)return;
+    const bodyH=48*scale,head=7*scale;
+    g.fillStyle='#0005';g.beginPath();g.ellipse(x,y+3,11*scale,4*scale,0,0,Math.PI*2);g.fill();
+    g.fillStyle=npc.color;g.beginPath();g.roundRect(x-9*scale,y-bodyH*.62,18*scale,bodyH*.56,5*scale);g.fill();
+    g.fillStyle='#bc9278';g.beginPath();g.arc(x,y-bodyH*.76,head,0,Math.PI*2);g.fill();
+    if(npc===nearbyNpc){g.strokeStyle='#e6ce93';g.lineWidth=2;g.beginPath();g.arc(x,y-bodyH*.45,bodyH*.48,0,Math.PI*2);g.stroke();g.fillStyle='#172633dd';g.fillRect(x-58,y-bodyH-20,116,17);g.fillStyle='#fff';g.font='bold 10px sans-serif';g.textAlign='center';g.fillText(npc.name,x,y-bodyH-8);g.textAlign='start';}
+  });
   g.fillStyle='#172633';g.fillRect(w*.02,h*.035,w*.105,22);g.fillStyle='#f0e9dc';g.font='9px sans-serif';g.fillText('● LIVE FEED',w*.035,h*.059);g.fillStyle='#ffffff';g.font='bold 11px sans-serif';g.fillText(room==='war'?'SITUATION ROOM':room==='press'?'THE PRESS ROOM':'THE OVAL OFFICE',w*.04,h*.95);
 }
 $('modal').addEventListener('click',e=>{if(e.target.id==='menu-log'){openLog();}if(e.target.id==='menu-reset'){openModal(`<button class="modal-close" aria-label="Close">×</button><div class="eyebrow">A FRESH START</div><h2>Begin a new presidency?</h2><p>Your current save will be replaced. This cannot be undone.</p><div class="modal-actions"><button id="confirm-reset">Start over</button><button class="secondary modal-close">Keep playing</button></div>`);}if(e.target.id==='confirm-reset'){localStorage.removeItem('theOvalSave');game={...initial,history:[...initial.history],log:[]};save();closeModal();render();createRoom(game.room);}});
