@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#101619">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23111719'/%3E%3Cpath d='M13 13h38v10H25v8h22v10H25v10H13z' fill='%23c8f16a'/%3E%3C/svg%3E">
+<title>SCRAPLINE // Iron Protocol</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="game" aria-label="Scrapline robot combat arena"></canvas>
+<div class="grain"></div><div class="scanlines"></div>
+<div class="hud" id="hud">
+  <div class="topbar"><div class="brand"><b>SCRAPLINE</b>IRON PROTOCOL <span class="brand-dot">●</span></div><div class="objective"><small>ACTIVE OPERATION</small><strong id="objective">CLEAR THE YARD</strong></div><div class="status"><span class="live-dot"></span> UPLINK <b>STABLE</b><span class="status-divider">//</span> <span id="clock">00:00</span></div></div>
+  <div class="wave-card"><small>THREAT LEVEL</small><div class="wave-number"><span id="wave">01</span><i>/ 05</i></div><div class="wave-track"><span id="wave-progress"></span></div><div class="hostiles"><span class="hostile-icon">✣</span> HOSTILES <b id="hostiles">00</b></div></div>
+  <div class="center-notice" id="notice"></div>
+  <div class="reticle" id="reticle"><i></i><i></i><i></i><i></i><b></b></div>
+  <div class="hit-marker" id="hit-marker">✕</div>
+  <div class="bottom-hud"><div class="health"><div class="hud-label"><span>VITALS</span><b id="health-value">100</b></div><div class="meter"><i id="health-bar"></i></div><div class="status-caption" id="health-caption">COMBAT READY</div></div><div class="mission-note"><span class="note-icon">⌖</span><div><b>FIELD DIRECTIVE</b><span id="directive">Eliminate all hostile units.</span></div></div><div class="ammo"><div class="ammo-top"><span>RIFLE / M4-C</span><span id="reload-state"></span></div><div class="ammo-count"><b id="ammo">30</b><span>/</span><i id="reserve">180</i></div><div class="ammo-bottom">5.56 × 45 MM <span>▰▰▰</span></div></div></div>
+  <div class="crosshair-label" id="aim-label">FIELD OF VIEW // 61°</div>
+</div>
+<div class="overlay" id="overlay">
+  <div class="overlay-grid"></div><div class="briefing">
+    <div class="eyebrow"><span class="orange-bar"></span> TACTICAL SIMULATION <span class="eyebrow-code">SECTOR 07 / 2049</span></div>
+    <div class="title-lockup"><h1>IRON<br><em>PROTOCOL</em></h1><div class="title-mark">IP<span>—</span>07</div></div>
+    <p class="subtitle">The machines took the yard. Take it back.</p>
+    <div class="briefing-rule"></div>
+    <div class="briefing-details"><div><small>MISSION</small><b>SCRAPLINE DEPOT</b></div><div><small>THREAT</small><b class="threat">RISING // 05 WAVES</b></div><div><small>COMMS</small><b>RADIO SILENT</b></div></div>
+    <button class="start-button" id="start"><span>DEPLOY</span><b>→</b></button>
+    <div class="controls"><div class="control-row"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><span>MOVE</span></div><div class="control-row"><kbd>CLICK</kbd><span>FIRE</span><kbd>R</kbd><span>RELOAD</span><kbd>ESC</kbd><span>PAUSE</span></div></div>
+    <div class="no-audio">◼ &nbsp; RADIO SILENCE // NO MUSIC</div>
+  </div>
+  <div class="briefing-side"><div class="side-cross">+</div><div class="side-vertical">SCRAPLINE DEPOT &nbsp; / &nbsp; 48°12' N 16°22' E</div><div class="side-coordinates">FIELD REPORT <span>№ 07—IP</span></div></div>
+</div>
+<div class="mobile-controls" id="mobile-controls"><div class="stick-zone" id="stick-zone"><div class="stick" id="stick"></div><span>MOVE</span></div><button id="mobile-fire" class="fire-button">FIRE</button><button id="mobile-reload" class="reload-button">↻<small>RELOAD</small></button></div>
+<div class="pause-panel" id="pause-panel"><div class="pause-box"><small>OPERATION SUSPENDED</small><h2>PAUSED<span>.</span></h2><p>Take a breath. The machines won't.</p><button id="resume">RESUME OPERATION <b>→</b></button><button id="restart">RESTART FROM BEGINNING</button><div class="pause-foot">ESC TO RESUME &nbsp; // &nbsp; RADIO SILENT</div></div></div>
+<div class="end-panel" id="end-panel"><div class="end-box"><small id="end-kicker">MISSION COMPLETE</small><h2 id="end-title">YARD<br><em>SECURED.</em></h2><p id="end-copy">The depot is quiet. For now.</p><div class="end-stats"><div><small>HOSTILES DOWN</small><b id="final-kills">00</b></div><div><small>TIME ELAPSED</small><b id="final-time">00:00</b></div><div><small>ACCURACY</small><b id="final-accuracy">100%</b></div></div><button id="again">DEPLOY AGAIN <b>→</b></button><div class="pause-foot">SCRAPLINE // IRON PROTOCOL</div></div></div>
+<script src="game.js"></script>
+</body>
+</html>
