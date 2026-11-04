@@ -1,9 +1,0 @@
-{
-  "name": "robot-story-mode-game",
-  "private": true,
-  "version": "1.0.0",
-  "scripts": {
-    "build": "rm -rf dist && mkdir -p dist && cp index.html style.css game.js dist/",
-    "start": "python3 -m http.server 3000 --directory dist"
-  }
-}
